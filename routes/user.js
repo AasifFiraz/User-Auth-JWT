@@ -2,6 +2,7 @@ const express = require("express")
 const User = require("../model/user")
 const crypto = require ("crypto");
 const jwt = require("jsonwebtoken")
+const errorHandler = require("../middleware/error-handler")
 const router = express.Router()
 const auth = require("../middleware/auth")
 require("dotenv").config()
@@ -30,19 +31,18 @@ const decryptPassword = (iv, content) => {
 }
 
 router.post('/register', async(req, res) => {
-    try {
         // Get User Input
         const {username, email, password} = req.body
 
         // Validate User Input
         if (!(email && password && username)) {
-            res.status(400).json({error: "All input is required"});
+            throw new errorHandler("All Input is Required", 400)
         }
 
         // Check if user already exists
         const isExistingUser = await User.findOne({ email })
         if(isExistingUser){
-            return res.status(409).json({"error": "Email already exists. Please Login"})
+            throw new errorHandler("Email already exists. Please Login", 409) 
         }
 
         const user = await User.create({
@@ -52,25 +52,20 @@ router.post('/register', async(req, res) => {
         })
         // Return new user
         res.status(200).json(user)
-        initVectorGlob = ""
-    } catch (error) {
-        res.status(500).json(error)
-    }
 });
 
-router.post('/login', async(req, res) => {
-    try {
-        
+router.post('/login', async(req, res) => {     
+    try {        
         const {email, password} = req.body
 
         if (!(email && password)) {
-            res.status(400).json({error:"All input is required"});
+            throw new errorHandler("All Input is Required", 400)
         }
 
         const user = await User.findOne({ email });
         const {iv, content} = user.password
-        
-        if (user && decryptPassword(iv, content) === password) {
+
+        if (user.email && decryptPassword(iv, content) === password) {
             const token = jwt.sign(
                 { user_id: user._id, email },
                 process.env.TOKEN_KEY,
@@ -82,19 +77,18 @@ router.post('/login', async(req, res) => {
             user.token = token;
             // user
             return res.status(200).json(user);
-        }
-        return res.status(404).json({error:"Invalid Credentials"});
-
+        } 
+        throw Error()
     } catch (error) {
-        res.status(500).json({error: "Error"})
-    }
-
+        throw new errorHandler("Invalid Credentials", 404)        
+    }   
 })
 
 // JWT Required for the below endpoint
 router.post('/welcome', auth, (req, res) => {
     res.status(200).json({"Sucess": "Welcome to the home page"})
 })
+
 
 
 module.exports = router
